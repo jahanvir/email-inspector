@@ -38,8 +38,8 @@ jobs:
             echo "No changes detected"
             echo "CHANGED=false" >> $GITHUB_ENV
 
-      - name: Install package locally
-        run: pip install -e .
+      - name: Install package
+        run: python -m pip install .
 
       - name: Run tests
         env:
