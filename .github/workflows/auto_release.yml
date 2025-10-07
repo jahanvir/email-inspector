@@ -1,0 +1,68 @@
+name: Auto Update & Release
+
+# Trigger twice a year and allow manual trigger
+on:
+  schedule:
+    - cron: '0 0 1 1,7 *'  # 00:00 UTC on Jan 1 and Jul 1
+  workflow_dispatch:
+
+jobs:
+  update-test-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2️⃣ Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install bump2version build twine pytest requests
+
+      # 4️⃣ Update free providers and commit if changed
+      - name: Update free providers
+        run: |
+          python update_free_providers.py
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add email_inspector/data/free_providers.json
+          # Check if there are changes
+          if ! git diff-index --quiet HEAD; then
+            echo "Changes detected in free_providers.json"
+            git commit -m "Update free providers list"
+            echo "CHANGED=true" >> $GITHUB_ENV
+          else
+            echo "No changes detected"
+            echo "CHANGED=false" >> $GITHUB_ENV
+
+      # 5️⃣ Run tests
+      - name: Run tests
+        run: pytest -q
+
+      # 6️⃣ Bump version only if changes exist
+      - name: Bump version (patch)
+        if: env.CHANGED == 'true'
+        run: |
+          bump2version patch pyproject.toml
+          git push origin main --follow-tags
+
+      # 7️⃣ Build package
+      - name: Build package
+        run: python -m build
+
+      # 8️⃣ Publish to PyPI
+      - name: Publish to PyPI
+        if: env.CHANGED == 'true'
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload dist/*
