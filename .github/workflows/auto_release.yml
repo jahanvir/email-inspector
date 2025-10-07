@@ -32,7 +32,7 @@ jobs:
           git add email_inspector/data/free_providers.json
           if ! git diff --cached --quiet; then
             echo "Changes detected in free_providers.json"
-            git commit -m "Update free providers list"
+            git commit -m "Update free providers list" email_inspector/data/free_providers.json
             echo "CHANGED=true" >> $GITHUB_ENV
           else
             echo "No changes detected"
