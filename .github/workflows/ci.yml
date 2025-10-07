@@ -1,36 +1,55 @@
-name: CI
+name: CI/CD
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  release:
-    types: [ published ]
+    branches: [main]
+  workflow_dispatch:
 
 jobs:
-  test:
+  update-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      - run: pip install -U pip setuptools wheel pytest
-      - run: pip install -e .
-      - run: pytest -q
 
-  publish:
-    if: github.event_name == 'release'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel twine pytest requests dnspython
+
+      - name: Update free providers
+        run: |
+          python update_free_providers.py
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add email_inspector/data/free_providers.json
+          git diff-index --quiet HEAD || git commit -m "Update free providers list"
+
+      - name: Run tests
+        run: pytest -q
+
+  release:
+    needs: update-and-test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
-      - run: pip install build twine
-      - run: python -m build
-      - uses: pypa/gh-action-pypi-publish@v1.6.0
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          python-version: 3.11
+
+      - name: Install build tools
+        run: python -m pip install --upgrade pip build twine
+
+      - name: Build package
+        run: python -m build
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload dist/*
