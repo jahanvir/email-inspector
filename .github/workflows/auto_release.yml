@@ -46,9 +46,11 @@ jobs:
 
       - name: Install package locally
         run: pip install -e .
-        
+
       # 5️⃣ Run tests
       - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: pytest -q
 
       # 6️⃣ Bump version only if changes exist
